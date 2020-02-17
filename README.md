@@ -138,4 +138,4 @@ channel std(0~1)          |  [0.25274113 0.25274113 0.25274113]
 ```
 
 ### License
-[MIT License](https://github.com/Sonngja/basic-image-eda/blob/master/LICENSE)
+[MIT License](https://github.com/Soongja/basic-image-eda/blob/master/LICENSE)
