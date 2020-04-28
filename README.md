@@ -1,6 +1,6 @@
 # basic-image-eda
 
-A simple eda tool to check basic infos of images under a directory(images are found recursively). This tool was made to quickly check info and prevent mistakes on reading, resizing, and normalizing images as inputs for neural networks. It can be used when first joining an image competition or training CNNs with images!
+A simple eda tool to check basic information of images under a directory(images are found recursively). This tool was made to quickly check info and prevent mistakes on reading, resizing, and normalizing images as inputs for neural networks. It can be used when first joining an image competition or training CNNs with images!
 
 *Notes:*  
 \- All images are converted to 3-channel(rgb) images. When images that have various channels are mixed, results can be misleading.  
@@ -12,6 +12,7 @@ pip install basic-image-eda
 ```
 prerequisites:
 - opencv-python
+- skimage.io
 - numpy
 - matplotlib
 - tqdm
@@ -24,15 +25,17 @@ basic-image-eda <data_dir>
 ```
 or
 ```bash
-basic-image-eda <data_dir> --extensions png jpg --threads 12 --dimension_plot False --channel_hist True --nonzero
+basic-image-eda <data_dir> --extensions png tiff --threads 12 --dimension_plot --channel_hist --nonzero --hw_division_factor 2.0
 
 Options:
-  -e --extensions        target image extensions.(default=['png', 'jpg', 'jpeg'])
-  -t --threads           number of multiprocessing threads. if zero, automatically counted.(default=0)
-  -d --dimension_plot    show dimension(height/width) scatter plot.(default=True)
-  -c --channel_hist      show channelwise pixel value histogram. takes much longer time.(default=False)
-  -n --nonzero           calculate values only from non-zero pixels of the images.(default=False)
-  -V --version           show version.
+  -e --extensions          target image extensions.(default=['png', 'jpg', 'jpeg'])
+  -t --threads             number of multiprocessing threads. if zero, automatically counted.(default=0)
+  -d --dimension_plot      show dimension(height/width) scatter plot.(default=False)
+  -c --channel_hist        show channelwise pixel value histogram. takes longer time.(default=False)
+  -n --nonzero             calculate values only from non-zero pixels of the images.(default=False)
+  -f --hw_division_factor  divide height,width of the images by this factor to make pixel value calculation faster.
+                           Height, width information are not changed and will be printed correctly.(default=1.0)
+  -V --version             show version.
 ```
 
 #### Code
@@ -45,11 +48,12 @@ if __name__ == "__main__":  # for multiprocessing
     # below are default values. 
     extensions = ['png', 'jpg', 'jpeg']
     threads = 0
-    dimension_plot = True
+    dimension_plot = False
     channel_hist = False
     nonzero = False
+    hw_division_factor = 1.0
 
-    BasicImageEDA.explore(data_dir, extensions, threads, dimension_plot, channel_hist, nonzero)
+    BasicImageEDA.explore(data_dir, extensions, threads, dimension_plot, channel_hist, nonzero, hw_division_factor)
 ```
 
 ### Results
