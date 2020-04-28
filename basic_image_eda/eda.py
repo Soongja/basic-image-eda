@@ -4,8 +4,10 @@ import glob
 import argparse
 import time
 import cv2
+import skimage.io
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.widgets import CheckButtons
 
 from tqdm import tqdm
 from functools import partial
@@ -33,63 +35,86 @@ class BasicImageEDA:
         return img_paths
 
     @staticmethod
-    def get_img_info(img_path, nonzero, channel_hist):
-        with open(img_path.encode("utf-8"), "rb") as f:
-            bytes = bytearray(f.read())
-        np_array = np.asarray(bytes, dtype=np.uint8)
-        img = cv2.imdecode(np_array, cv2.IMREAD_UNCHANGED).squeeze()
+    def get_img_info(img_path, nonzero, hw_division_factor, channel_hist):
 
-        if img is None:
+        # read
+        if img_path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
+            with open(img_path.encode("utf-8"), "rb") as f:
+                bytes = bytearray(f.read())
+            np_array = np.asarray(bytes)
+            img = cv2.imdecode(np_array, cv2.IMREAD_UNCHANGED).squeeze()
+        elif img_path.split('.')[-1].lower() in ['tif', 'tiff']:
+            img = skimage.io.MultiImage(img_path)[-1]
+
+        if img is None:  # if image cannot be read
             return None
 
         else:
             info_dict = {}
-            info_dict['img_path'] = img_path
-            info_dict['extension'] = img_path[-3:]
+            info_dict['extension'] = img_path.split('.')[-1]
             info_dict['dtype'] = str(img.dtype)
             dtype_max = MAX_VALUES_BY_DTYPE[str(img.dtype)]
-
-            if img.ndim == 2:
-                info_dict['channel'] = 1
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-            else:
-                if img.shape[2] == 3:
-                    info_dict['channel'] = 3
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                elif img.shape[2] == 4:
-                    info_dict['channel'] = 4
-                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
 
             info_dict['h'] = img.shape[0]
             info_dict['w'] = img.shape[1]
 
-            img = img.reshape(-1, 3)
+            if hw_division_factor != 1.0:
+                img = cv2.resize(img, None, fx=1/hw_division_factor, fy=1/hw_division_factor, interpolation=cv2.INTER_LINEAR)
+
+            if img.ndim == 2:
+                info_dict['channel'] = 1
+                img = img.reshape(-1)
+            elif img.ndim == 3:
+                if img.shape[2] == 3:
+                    info_dict['channel'] = 3
+                    if img_path.split('.')[-1] in ['png', 'jpg', 'jpeg']:
+                        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                elif img.shape[2] == 4:
+                    info_dict['channel'] = 4
+                    if img_path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
+                        img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+                    elif img_path.split('.')[-1].lower() in ['tif', 'tiff']:
+                        img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
+                else:
+                    raise Exception('Only 2-D images with 1,3,4 channels are supported.')
+
+                img = img.reshape(-1, 3)
 
             if nonzero:
-                nonzeros = np.any(img != [0, 0, 0], axis=-1)
-                img = img[nonzeros]
+                if info_dict['channel'] == 1:
+                    nonzeros = np.where(img != 0)
+                    img = img[nonzeros]
+                else:
+                    nonzeros = np.any(img != [0, 0, 0], axis=-1)
+                    img = img[nonzeros]
 
             if channel_hist:
                 rgb_count = np.zeros((3, dtype_max+1), np.int64)
+
                 if info_dict['channel'] == 1:
-                    rgb_count[:] = np.histogram(img[:, 0], bins=dtype_max+1, range=[0, float(dtype_max+1)])[0]
+                    rgb_count[:] = np.histogram(img[:], bins=dtype_max+1, range=[0, float(dtype_max+1)])[0]
                 else:
                     for c in range(3):
                         hist = np.histogram(img[:, c], bins=dtype_max+1, range=[0, float(dtype_max+1)])[0]
                         rgb_count[c] = hist
                 info_dict['rgb_count'] = rgb_count
 
-            img = img / float(dtype_max)
+            img = img / np.array([dtype_max], dtype=np.float32)
 
             info_dict['mean'] = img.mean(axis=0)
             info_dict['std'] = (img ** 2).mean(axis=0)
 
+            if info_dict['channel'] == 1:
+                info_dict['mean'] = np.repeat(info_dict['mean'], 3)
+                info_dict['std'] = np.repeat(info_dict['std'], 3)
+
             return info_dict
 
     @classmethod
-    def explore(cls, data_dir, extensions=('png', 'jpg', 'jpeg'), threads=0, dimension_plot=True, channel_hist=False, nonzero=False):
+    def explore(cls, data_dir, extensions=('png', 'jpg', 'jpeg'), threads=0, dimension_plot=True, channel_hist=False,
+                nonzero=False, hw_division_factor=1.0):
         """
-        Explore image dataset directory to check basic infos of the images.
+        Explore image dataset directory to check basic information of the images.
 
         Args:
             data_dir: str
@@ -101,13 +126,18 @@ class BasicImageEDA:
             dimension_plot: bool
                 if True, show dimension(height/width) scatter plot.
             channel_hist: bool
-                if True, show channelwise pixel value histogram. takes much longer time.
+                if True, show channelwise pixel value histogram. takes longer time.
             nonzero: bool
                 if True, calculate values only from non-zero pixels of the images.
+            hw_division_factor: float
+                if a float value other than 1.0 is given, divide height,width of the images by this factor
+                to make pixel value calculation faster. Height, width information are not changed and will be printed
+                correctly.
 
         Returns:
-            A dict containing infos of the images.
+            A dict containing information of the images.
         """
+
         start = time.time()
 
         img_paths = cls.get_img_paths(data_dir, extensions)
@@ -133,8 +163,8 @@ class BasicImageEDA:
             'rec_hw_size_8': np.zeros(2, np.int32),
             'rec_hw_size_16': np.zeros(2, np.int32),
             'rec_hw_size_32': np.zeros(2, np.int32),
-            'mean': np.zeros(3),
-            'std': np.zeros(3),
+            'mean': np.zeros(3, np.float32),
+            'std': np.zeros(3, np.float32),
         }
 
         if dimension_plot:
@@ -153,7 +183,7 @@ class BasicImageEDA:
         print('Using %d threads.\n' % threads)
 
         try:
-            func = partial(cls.get_img_info, nonzero=nonzero, channel_hist=channel_hist)
+            func = partial(cls.get_img_info, nonzero=nonzero, hw_division_factor=hw_division_factor, channel_hist=channel_hist)
             for info in tqdm(pool.imap_unordered(func, img_paths), total=len(img_paths)):
                 if info is None:
                     continue
@@ -255,6 +285,9 @@ class BasicImageEDA:
             print()
             print('%-25s | ' % 'channel mean(0~1)', output['mean'])
             print('%-25s | ' % 'channel std(0~1)', output['std'])
+            if hw_division_factor != 1.0:
+                print('%-25s | ' % '', 'mean,std were calculated with image heights,widths divided by', hw_division_factor)
+
             print('*--------------------------------------------------------------------------------------*')
             t = time.time() - start
             print('eda ended in %02d hours %02d minutes %02d seconds'
@@ -301,21 +334,51 @@ class BasicImageEDA:
                 plt.gca().set_aspect('equal', adjustable='box')
 
             if channel_hist:
-                plt.figure('channel histogram', figsize=(8,6))
+                fig = plt.figure('channel histogram', figsize=(10, 6))
+                ax = plt.axes([0.1, 0.1, 0.65, 0.8])
 
-                rgb_count[:, 0] = 0
                 for i, col in enumerate(('r', 'g', 'b')):
-                    plt.plot(rgb_count[i], color=col, linewidth=1)
+                    ax.plot(rgb_count[i], color=col, linewidth=1)
 
-                plt.xlim([0, rgb_count.shape[1]])
-                plt.ylim([0, None])
+                rax = plt.axes([0.78, 0.35, 0.2, 0.3])
+                labels = ['remove_zero', 'remove_maxval']
+                check = CheckButtons(rax, labels)
 
-                plt.xlabel('pixel value')
-                plt.ylabel('frequency')
+                flags = {'remove_zero': False, 'remove_maxval': False}
 
-                plt.title('channelwise pixel value histogram (zero omitted)', pad=30)
+                def func(label):
+                    flags[label] = not flags[label]
 
-                plt.gcf().subplots_adjust(left=0.15)
+                    new_rgb_count = rgb_count.copy()
+                    if flags['remove_zero']:
+                        new_rgb_count[:, 0] = 0
+                    if flags['remove_maxval']:
+                        new_rgb_count[:, -1] = 0
+
+                    ax.cla()
+
+                    for i, col in enumerate(('r', 'g', 'b')):
+                        ax.plot(new_rgb_count[i], color=col, linewidth=1)
+
+                    ax.set_xlim([0, rgb_count.shape[1]])
+                    ax.set_ylim([0, None])
+
+                    ax.set_xlabel('pixel value')
+                    ax.set_ylabel('frequency')
+
+                    ax.set_title('channelwise pixel value histogram (zero omitted)', pad=30)
+
+                    plt.show()
+
+                check.on_clicked(func)
+
+                ax.set_xlim([0, rgb_count.shape[1]])
+                ax.set_ylim([0, None])
+
+                ax.set_xlabel('pixel value')
+                ax.set_ylabel('frequency')
+
+                ax.set_title('channelwise pixel value histogram (zero omitted)', pad=30)
 
             if dimension_plot or channel_hist:
                 plt.show()
@@ -341,17 +404,22 @@ def main():
                         help='target image extensions.')
     parser.add_argument('-t', '--threads', type=int, default=0,
                         help='number of multiprocessing threads. if zero, automatically counted.')
-    parser.add_argument('-d', '--dimension_plot', type=bool, default=True,
+    parser.add_argument('-d', '--dimension_plot', default=False, action='store_true',
                         help='show dimension(height/width) scatter plot.')
-    parser.add_argument('-c', '--channel_hist', type=bool, default=False,
+    parser.add_argument('-c', '--channel_hist', default=False, action='store_true',
                         help='show channelwise pixel value histogram. takes much longer time.')
     parser.add_argument('-n', '--nonzero', action='store_true', default=False,
                         help='calculate values only from non-zero pixels of the images.')
+    parser.add_argument('-f', '--hw_division_factor', type=float, default=1.0,
+                        help='divide height,width of the images by this factor to make pixel value'
+                             'calculation faster. Height, width information are not changed and'
+                             'will be printed correctly.')
     parser.add_argument('-V', '--version', action='version', version='%(prog)s {}'.format(__version__))
 
     args = parser.parse_args()
 
-    BasicImageEDA.explore(args.data_dir, args.extensions, args.threads, args.dimension_plot, args.channel_hist, args.nonzero)
+    BasicImageEDA.explore(args.data_dir, args.extensions, args.threads, args.dimension_plot, args.channel_hist,
+                          args.nonzero, args.hw_division_factor)
 
 
 if __name__ == "__main__":
