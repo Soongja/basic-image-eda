@@ -17,11 +17,12 @@ REQUIRED = [
     # 'numpy',
     # 'matplotlib',
     # 'tqdm',
+    # 'skimage.io',
 ]
 
 setup(
     name='basic-image-eda',
-    description='image dataset eda tool to check basic infos of images.',
+    description='image dataset eda tool to check basic information of images.',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/Soongja/basic-image-eda',
