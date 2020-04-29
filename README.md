@@ -53,6 +53,10 @@ if __name__ == "__main__":  # for multiprocessing
     nonzero = False
     hw_division_factor = 1.0
 
+    BasicImageEDA.explore(data_dir)
+    
+    # or
+    
     BasicImageEDA.explore(data_dir, extensions, threads, dimension_plot, channel_hist, nonzero, hw_division_factor)
 ```
 
