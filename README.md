@@ -99,6 +99,9 @@ channel std(0~1)          |  [0.32161251 0.30237885 0.30192492]
 *--------------------------------------------------------------------------------------*
 ```
 
+download site: http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html  
+paper: S. Yang, P. Luo, C. C. Loy, and X. Tang, "From Facial Parts Responses to Face Detection: A Deep Learning Approach", in IEEE International Conference on Computer Vision (ICCV), 2015  
+
 #### Results on [NIH Chest X-ray dataset](https://cloud.google.com/healthcare/docs/resources/public-datasets/nih-chest?hl=ko) (images_001.tar.gz)
 
 <table border="0">
@@ -140,6 +143,12 @@ channel mean(0~1)         |  [0.51725466 0.51725466 0.51725466]
 channel std(0~1)          |  [0.25274113 0.25274113 0.25274113]
 *--------------------------------------------------------------------------------------*
 ```
+
+data provider: NIH Clinical Center  
+download site: https://nihcc.app.box.com/v/ChestXray-NIHCC  
+paper: Xiaosong Wang, Yifan Peng, Le Lu, Zhiyong Lu, Mohammadhadi Bagheri, Ronald Summers, ChestX-ray8:
+Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of
+Common Thorax Diseases, IEEE CVPR, pp. 3462-3471, 2017  
 
 ### License
 [MIT License](https://github.com/Soongja/basic-image-eda/blob/master/LICENSE)
