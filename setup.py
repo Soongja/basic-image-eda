@@ -16,8 +16,9 @@ REQUIRED = [
     # 'opencv-python',
     # 'numpy',
     # 'matplotlib',
-    # 'tqdm',
     # 'skimage.io',
+    # 'tifffile',
+    # 'tqdm',
 ]
 
 setup(
